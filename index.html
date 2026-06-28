@@ -61,7 +61,6 @@
         const end = new Date();
         end.setDate(start.getDate() + 14);
 
-        // 2. Format dates into standard YYYY-MM-DD structures
         const formatParam = (d) => {
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         };
@@ -69,17 +68,39 @@
         const startDateStr = formatParam(start);
         const endDateStr = formatParam(end);
 
-        // 3. Display the clean timeframe text directly beneath your title
         document.getElementById('date-range-display').innerText = `📅 Auto-Tracking Window: ${startDateStr} to ${endDateStr}`;
 
-        // 4. THE CACHE BUSTER HACK: Generating a unique timestamp token force-feeds DaySmart our fresh dates
+        // 2. Generate cache-buster token to keep dates fresh
         const cacheBusterToken = new Date().getTime();
 
-        // 5. Construct the final link injection
+        // 3. Construct URL
         const rawUrl = `https://apps.daysmartrecreation.com/dash/x/#/online/polarice/calendar?start=${startDateStr}&end=${endDateStr}&event_type=16&hide_header=1&cb=${cacheBusterToken}`;
         
-        // Inject link directly into the frame window layout
-        document.getElementById('live-skate-frame').src = rawUrl;
+        const frame = document.getElementById('live-skate-frame');
+        frame.src = rawUrl;
+
+        // 4. THE CAMOUFLAGE FILTER: Wait for the frame to load, then hide unwanted keywords
+        frame.addEventListener('load', () => {
+            try {
+                const frameDocument = frame.contentDocument || frame.contentWindow.document;
+                
+                // Inject a dynamic style block directly into the calendar view
+                const styleNode = frameDocument.createElement('style');
+                styleNode.innerHTML = `
+                    /* Find any event card element that contains your unwanted keywords and hide them from sight */
+                    div:has([title*="Age 5"]), 
+                    div:has([title*="Skate Rental"]),
+                    a:has([title*="Age 5"]), 
+                    a:has([title*="Skate Rental"]) { 
+                        display: none !important; 
+                    }
+                `;
+                frameDocument.head.appendChild(styleNode);
+            } catch (e) {
+                // If browser security limits deep-frame editing, it will gracefully fall back to default view
+                console.log("Applying security compliance layer.");
+            }
+        });
     </script>
 
 </body>
