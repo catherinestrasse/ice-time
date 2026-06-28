@@ -5,106 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Triangle Area Public Skate Tracker</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f4f8; color: #102a43; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h1 { text-align: center; color: #0b69a3; margin-bottom: 5px; }
-        .refresh-text { text-align: center; font-size: 0.85rem; color: #627d98; margin-bottom: 25px; }
-        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #1982c4; }
-        .location { font-weight: bold; font-size: 1.1rem; color: #102a43; }
-        .time { margin-top: 5px; color: #486581; font-size: 0.95rem; }
-        .no-sessions { text-align: center; padding: 40px; color: #627d98; }
-        .btn-link { display: block; text-align: center; margin-top: 20px; color: #0b69a3; text-decoration: none; font-weight: bold; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #f0f4f8; 
+            color: #102a43; 
+            margin: 0; 
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .header-container {
+            text-align: center;
+            margin-bottom: 15px;
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 { color: #0b69a3; margin: 10px 0 5px 0; font-size: 1.8rem; }
+        p { margin: 0 0 10px 0; color: #486581; font-size: 0.95rem; }
+        
+        /* The container holding our embedded official calendar */
+        .calendar-frame-container {
+            width: 100%;
+            max-width: 950px;
+            flex-grow: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            overflow: hidden;
+            border: 1px solid #d9e2ec;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .footer-note {
+            font-size: 0.8rem;
+            color: #627d98;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Polar Ice Public Skate</h1>
-        <div class="refresh-text" id="status-text">Fetching live schedule from DaySmart...</div>
-        <div id="schedule-container"></div>
-        <a href="https://apps.daysmartrecreation.com/dash/x/#/online/polarice/calendar?event_type=16" target="_blank" class="btn-link">Open Official Calendar ↗</a>
+
+    <div class="header-container">
+        <h1>Public Skate</h1>
+        <p>Live Public Admission Schedules (Raleigh, Cary, Wake Forest, Invisalign Arena)</p>
     </div>
 
-    <script>
-        // Calculate dynamic dates for the next 14 days
-        const today = new Date();
-        const start_date = today.toISOString().split('T')[0];
-        const twoWeeksLater = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
-        const end_date = twoWeeksLater.toISOString().split('T')[0];
+    <div class="calendar-frame-container">
+        <iframe 
+            src="https://apps.daysmartrecreation.com/dash/x/#/online/polarice/calendar?event_type=16&hide_header=1" 
+            title="Polar Ice Public Admission Calendar">
+        </iframe>
+    </div>
 
-        // Maps DaySmart location IDs to friendly names (Excludes Garner completely)
-        const RINK_LABELS = {
-            "1": "Polar Ice Raleigh",
-            "2": "Polar Ice Cary",
-            "3": "Polar Ice Wake Forest",
-            "5": "Invisalign Arena"
-        };
+    <div class="footer-note">
+        Note: Use the built-in "Locations" filter inside the calendar view to instantly toggle rinks.
+    </div>
 
-        // We fetch data using an open proxy framework designed to handle browser calendar widgets securely
-        const targetUrl = `https://apps.daysmartrecreation.com/dash/x/api/online/v1/calendar?event_types=16&start=${start_date}&end=${end_date}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-
-        fetch(proxyUrl)
-            .then(response => {
-                if (!response.ok) throw new Error('Network error');
-                return response.json();
-            })
-            .then(wrapper => {
-                // AllOrigins wraps the server response in a text string
-                const data = JSON.parse(wrapper.contents);
-                const all_events = data.data || data.events || [];
-                const container = document.getElementById('schedule-container');
-                
-                document.getElementById('status-text').innerText = 'Showing live schedule for the next 2 weeks (Garner excluded)';
-
-                let filteredEvents = [];
-
-                // Standardize layout parsing depending on how data is received
-                let eventList = Array.isArray(all_events) ? all_events : Object.values(all_events).flat();
-
-                eventList.forEach(event => {
-                    if (!event) return;
-                    const title = event.title || '';
-                    const locationId = String(event.location_id || event.facility_id || (event.site && event.site.id) || '');
-                    
-                    // Match: Must say "Public Admission" and must match one of our 4 location IDs
-                    if (title.toLowerCase().includes('public admission') && RINK_LABELS[locationId]) {
-                        filteredEvents.push({
-                            location: RINK_LABELS[locationId],
-                            title: title,
-                            date: event.start_date || event.date || start_date,
-                            start_time: event.start_time || 'See Site',
-                            end_time: event.end_time || 'See Site'
-                        });
-                    }
-                });
-
-                if (filteredEvents.length === 0) {
-                    container.innerHTML = '<div class="no-sessions">No public admission sessions scheduled over the next 14 days for Raleigh, Cary, Wake Forest, or Invisalign Arena.</div>';
-                    return;
-                }
-
-                // Chronological sort
-                filteredEvents.sort((a, b) => new Date(a.date + ' ' + a.start_time) - new Date(b.date + ' ' + b.start_time));
-
-                filteredEvents.forEach(event => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    
-                    const dateObj = new Date(event.date + 'T00:00:00');
-                    const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-                    card.innerHTML = `
-                        <div class="location">${event.location}</div>
-                        <div class="time">📅 <strong>${formattedDate}</strong></div>
-                        <div class="time">⏰ ${event.start_time} - ${event.end_time}</div>
-                    `;
-                    container.appendChild(card);
-                });
-            })
-            .catch(err => {
-                document.getElementById('status-text').innerText = 'Unable to parse dynamic data sync.';
-                document.getElementById('schedule-container').innerHTML = '<div class="no-sessions">DaySmart layout restricts background connection. Click the link below to view the official schedule directly!</div>';
-            });
-    </script>
 </body>
 </html>
