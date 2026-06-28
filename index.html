@@ -68,7 +68,7 @@
                     
                     // Match: Must say "Public Admission" and must match one of our 4 location IDs
                     if (title.toLowerCase().includes('public admission') && RINK_LABELS[locationId]) {
-                        filteredEvents.append({
+                        filteredEvents.push({
                             location: RINK_LABELS[locationId],
                             title: title,
                             date: event.start_date || event.date || start_date,
