@@ -13,35 +13,83 @@
         .location { font-weight: bold; font-size: 1.1rem; color: #102a43; }
         .time { margin-top: 5px; color: #486581; font-size: 0.95rem; }
         .no-sessions { text-align: center; padding: 40px; color: #627d98; }
+        .btn-link { display: block; text-align: center; margin-top: 20px; color: #0b69a3; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Triangle Area Public Skate Tracker</h1>
-        <div class="refresh-text" id="refresh-time">Loading times...</div>
+        <h1>Polar Ice Public Skate</h1>
+        <div class="refresh-text" id="status-text">Fetching live schedule from DaySmart...</div>
         <div id="schedule-container"></div>
+        <a href="https://apps.daysmartrecreation.com/dash/x/#/online/polarice/calendar?event_type=16" target="_blank" class="btn-link">Open Official Calendar ↗</a>
     </div>
 
     <script>
-        fetch('./schedule.json')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('refresh-time').innerText = 'Refreshed daily at 6:00 AM • Last update: ' + data.refreshed_at;
+        // Calculate dynamic dates for the next 14 days
+        const today = new Date();
+        const start_date = today.toISOString().split('T')[0];
+        const twoWeeksLater = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
+        const end_date = twoWeeksLater.toISOString().split('T')[0];
+
+        // Maps DaySmart location IDs to friendly names (Excludes Garner completely)
+        const RINK_LABELS = {
+            "1": "Polar Ice Raleigh",
+            "2": "Polar Ice Cary",
+            "3": "Polar Ice Wake Forest",
+            "5": "Invisalign Arena"
+        };
+
+        // We fetch data using an open proxy framework designed to handle browser calendar widgets securely
+        const targetUrl = `https://apps.daysmartrecreation.com/dash/x/api/online/v1/calendar?event_types=16&start=${start_date}&end=${end_date}`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+
+        fetch(proxyUrl)
+            .then(response => {
+                if (!response.ok) throw new Error('Network error');
+                return response.json();
+            })
+            .then(wrapper => {
+                // AllOrigins wraps the server response in a text string
+                const data = JSON.parse(wrapper.contents);
+                const all_events = data.data || data.events || [];
                 const container = document.getElementById('schedule-container');
                 
-                if (!data.events || data.events.length === 0) {
-                    container.innerHTML = '<div class="no-sessions">No public admission sessions found for the next 2 weeks.</div>';
+                document.getElementById('status-text').innerText = 'Showing live schedule for the next 2 weeks (Garner excluded)';
+
+                let filteredEvents = [];
+
+                // Standardize layout parsing depending on how data is received
+                let eventList = Array.isArray(all_events) ? all_events : Object.values(all_events).flat();
+
+                eventList.forEach(event => {
+                    if (!event) return;
+                    const title = event.title || '';
+                    const locationId = String(event.location_id || event.facility_id || (event.site && event.site.id) || '');
+                    
+                    // Match: Must say "Public Admission" and must match one of our 4 location IDs
+                    if (title.toLowerCase().includes('public admission') && RINK_LABELS[locationId]) {
+                        filteredEvents.append({
+                            location: RINK_LABELS[locationId],
+                            title: title,
+                            date: event.start_date || event.date || start_date,
+                            start_time: event.start_time || 'See Site',
+                            end_time: event.end_time || 'See Site'
+                        });
+                    }
+                });
+
+                if (filteredEvents.length === 0) {
+                    container.innerHTML = '<div class="no-sessions">No public admission sessions scheduled over the next 14 days for Raleigh, Cary, Wake Forest, or Invisalign Arena.</div>';
                     return;
                 }
 
-                // Sort events by date and time
-                data.events.sort((a, b) => new Date(a.date + ' ' + a.start_time) - new Date(b.date + ' ' + b.start_time));
+                // Chronological sort
+                filteredEvents.sort((a, b) => new Date(a.date + ' ' + a.start_time) - new Date(b.date + ' ' + b.start_time));
 
-                data.events.forEach(event => {
+                filteredEvents.forEach(event => {
                     const card = document.createElement('div');
                     card.className = 'card';
                     
-                    // Format date nicely
                     const dateObj = new Date(event.date + 'T00:00:00');
                     const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -54,8 +102,8 @@
                 });
             })
             .catch(err => {
-                document.getElementById('refresh-time').innerText = 'App is setting up. Generating first schedule data...';
-                document.getElementById('schedule-container').innerHTML = '<div class="no-sessions">Waiting for first automatic 6 AM run, or trigger it manually in the Actions tab!</div>';
+                document.getElementById('status-text').innerText = 'Unable to parse dynamic data sync.';
+                document.getElementById('schedule-container').innerHTML = '<div class="no-sessions">DaySmart layout restricts background connection. Click the link below to view the official schedule directly!</div>';
             });
     </script>
 </body>
